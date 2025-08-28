@@ -5,9 +5,10 @@
 """
 
 from typing import Dict, Any, Optional
+from .base import BaseMessageProvider
 
 
-class DingTalkProvider:
+class DingTalkProvider(BaseMessageProvider):
     """钉钉机器人消息提供者"""
     
     def __init__(self, config: Dict[str, Any]):
@@ -33,10 +34,12 @@ class DingTalkProvider:
         return False
     
     def send_message(
-        self, 
-        user_id: str, 
-        message: str, 
-        title: Optional[str] = None,
+        self,
+        user_id: str,
+        content: str,
+        summary: Optional[str] = None,
+        content_type: int = 1,
+        url: Optional[str] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """发送钉钉消息"""
@@ -46,5 +49,6 @@ class DingTalkProvider:
             "success": True,
             "provider": "dingtalk",
             "user_id": user_id,
-            "message": message
+            "content": content,
+            "summary": summary
         }

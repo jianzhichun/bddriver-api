@@ -1,6 +1,6 @@
 """
 Command Line Interface for BaiduDriver SDK
-Provides convenient CLI commands for file operations
+Provides convenient CLI commands for file operations and message provider management
 🚀 开发模式：实时生效，无需重新安装！
 """
 
@@ -17,16 +17,13 @@ from .utils.logger import get_logger
 
 def setup_logger(verbose: bool = False):
     """设置 CLI 日志"""
-    import os
-
-    # 根据verbose参数设置日志级别
+    from .utils.logger import reconfigure_logging
+    
+    # 根据verbose参数重新配置日志级别
     if verbose:
-        os.environ.setdefault("BDDRIVER_LOG_LEVEL", "DEBUG")
+        reconfigure_logging("DEBUG")
     else:
-        os.environ.setdefault("BDDRIVER_LOG_LEVEL", "WARNING")
-
-    # 设置环境变量以获得简洁的控制台输出
-    os.environ.setdefault("BDDRIVER_LOG_FORMAT", "console")
+        reconfigure_logging("WARNING")
 
     return get_logger("cli")
 
@@ -474,6 +471,400 @@ def cmd_info(args) -> None:
         print_warning(f"无法获取配置信息: {e}")
 
 
+def cmd_messaging_list(args) -> None:
+    """列出所有可用的消息提供者"""
+    logger = setup_logger(verbose=args.verbose)
+    
+    try:
+        from .messaging import get_messaging_manager
+        
+        manager = get_messaging_manager()
+        status = manager.get_status()
+        
+        print_info("📱 消息提供者状态")
+        print("=" * 60)
+        print(f"📋 配置文件: {status['config_file']}")
+        print(f"🎯 默认提供者: {status['default_provider']}")
+        print()
+        
+        for provider_name, provider_status in status['providers'].items():
+            status_icon = "✅" if provider_status['enabled'] else "❌"
+            config_icon = "✅" if provider_status.get('config_complete', False) else "⚠️"
+            
+            # 检查是否为内置提供者
+            is_builtin = provider_status.get('builtin', False)
+            provider_label = f"{provider_name.upper()}{' (内置)' if is_builtin else ''}"
+            
+            print(f"{status_icon} {provider_label}")
+            print(f"   状态: {'启用' if provider_status['enabled'] else '禁用'}")
+            
+            if is_builtin:
+                print(f"   类型: 内置提供者 (无需配置)")
+            else:
+                print(f"   配置: {'完整' if provider_status.get('config_complete', False) else '不完整'}")
+            
+            if provider_status['enabled'] and provider_status['config'] and not is_builtin:
+                print(f"   配置详情:")
+                for key, value in provider_status['config'].items():
+                    if key.lower() in ['password', 'secret', 'token']:
+                        masked_value = str(value)[:8] + "..." if len(str(value)) > 8 else "***"
+                        print(f"     {key}: {masked_value}")
+                    else:
+                        print(f"     {key}: {value}")
+            print()
+        
+        print("💡 使用 'bddriver messaging config <provider>' 来配置提供者")
+        print("💡 使用 'bddriver messaging switch <provider>' 来切换默认提供者")
+        print("💡 使用 'bddriver messaging test <provider>' 来测试提供者")
+        print("💡 使用 'bddriver messaging subscribe <provider>' 来获取订阅信息")
+        print("💡 使用 'bddriver messaging qrcode <provider>' 来创建订阅二维码")
+        
+    except Exception as e:
+        logger.error(f"获取消息提供者状态失败: {e}")
+        print_error(f"获取消息提供者状态失败: {e}")
+
+
+def cmd_messaging_config(args) -> None:
+    """配置指定的消息提供者"""
+    logger = setup_logger(verbose=args.verbose)
+    
+    try:
+        from .messaging import get_messaging_manager
+        
+        manager = get_messaging_manager()
+        provider_name = args.provider.lower()
+        
+        if provider_name not in manager.get_available_providers():
+            print_error(f"不支持的消息提供者: {args.provider}")
+            print_info(f"支持的提供者: {', '.join(manager.get_available_providers())}")
+            return
+        
+        print_info(f"🔧 配置消息提供者: {provider_name.upper()}")
+        print("=" * 60)
+        
+        # 根据提供者类型提示配置项
+        if provider_name == "wxpusher":
+            print("📱 WxPusher 配置:")
+            print("   需要配置 app_token")
+            print("   示例: --app-token AT_xxxxxxxxxxxxxxxxxxxxxxxx")
+            
+            app_token = args.app_token or input("请输入 app_token: ").strip()
+            if app_token:
+                config = {"app_token": app_token}
+                if manager.enable_provider(provider_name, config):
+                    print_success(f"WxPusher 配置成功")
+                else:
+                    print_error("WxPusher 配置失败")
+            else:
+                print_warning("未提供 app_token，配置取消")
+                
+        elif provider_name == "dingtalk":
+            print("🔔 钉钉配置:")
+            print("   需要配置 webhook_url")
+            print("   示例: --webhook-url https://oapi.dingtalk.com/robot/send?access_token=xxx")
+            
+            webhook_url = args.webhook_url or input("请输入 webhook_url: ").strip()
+            if webhook_url:
+                config = {"webhook_url": webhook_url}
+                if args.secret:
+                    config["secret"] = args.secret
+                if manager.enable_provider(provider_name, config):
+                    print_success(f"钉钉配置成功")
+                else:
+                    print_error("钉钉配置失败")
+            else:
+                print_warning("未提供 webhook_url，配置取消")
+                
+        elif provider_name == "wechat_work":
+            print("💼 企业微信配置:")
+            print("   需要配置 corp_id, agent_id, secret")
+            
+            corp_id = args.corp_id or input("请输入 corp_id: ").strip()
+            agent_id = args.agent_id or input("请输入 agent_id: ").strip()
+            secret = args.secret or input("请输入 secret: ").strip()
+            
+            if corp_id and agent_id and secret:
+                config = {
+                    "corp_id": corp_id,
+                    "agent_id": agent_id,
+                    "secret": secret
+                }
+                if manager.enable_provider(provider_name, config):
+                    print_success(f"企业微信配置成功")
+                else:
+                    print_error("企业微信配置失败")
+            else:
+                print_warning("配置信息不完整，配置取消")
+                
+        elif provider_name == "email":
+            print("📧 邮件配置:")
+            print("   需要配置 smtp_host, username, password")
+            
+            smtp_host = args.smtp_host or input("请输入 SMTP 服务器地址: ").strip()
+            smtp_port = args.smtp_port or input("请输入 SMTP 端口 (默认587): ").strip() or "587"
+            username = args.username or input("请输入邮箱地址: ").strip()
+            password = args.password or input("请输入邮箱密码/应用密码: ").strip()
+            
+            if smtp_host and username and password:
+                config = {
+                    "smtp_host": smtp_host,
+                    "smtp_port": int(smtp_port),
+                    "username": username,
+                    "password": password
+                }
+                if manager.enable_provider(provider_name, config):
+                    print_success(f"邮件配置成功")
+                else:
+                    print_error("邮件配置失败")
+            else:
+                print_warning("配置信息不完整，配置取消")
+        
+        print()
+        print("💡 使用 'bddriver messaging test {provider_name}' 来测试配置")
+        
+    except Exception as e:
+        logger.error(f"配置消息提供者失败: {e}")
+        print_error(f"配置消息提供者失败: {e}")
+
+
+def cmd_messaging_switch(args) -> None:
+    """切换默认消息提供者"""
+    logger = setup_logger(verbose=args.verbose)
+    
+    try:
+        from .messaging import get_messaging_manager
+        
+        manager = get_messaging_manager()
+        provider_name = args.provider.lower()
+        
+        if provider_name not in manager.get_available_providers():
+            print_error(f"不支持的消息提供者: {args.provider}")
+            print_info(f"支持的提供者: {', '.join(manager.get_available_providers())}")
+            return
+        
+        current_provider = manager.get_default_provider()
+        
+        if provider_name == current_provider:
+            print_info(f"当前默认提供者已经是 {provider_name.upper()}")
+            return
+        
+        if not manager.config["providers"][provider_name].get("enabled", False):
+            print_error(f"消息提供者 {provider_name.upper()} 未启用")
+            print_info(f"请先使用 'bddriver messaging config {provider_name}' 进行配置")
+            return
+        
+        if manager.set_default_provider(provider_name):
+            print_success(f"默认消息提供者已从 {current_provider.upper()} 切换到 {provider_name.upper()}")
+        else:
+            print_error(f"切换默认消息提供者失败")
+        
+    except Exception as e:
+        logger.error(f"切换消息提供者失败: {e}")
+        print_error(f"切换消息提供者失败: {e}")
+
+
+def cmd_messaging_test(args) -> None:
+    """测试消息提供者"""
+    logger = setup_logger(verbose=args.verbose)
+    
+    try:
+        from .messaging import get_messaging_manager
+        
+        manager = get_messaging_manager()
+        provider_name = args.provider.lower()
+        
+        if provider_name not in manager.get_available_providers():
+            print_error(f"不支持的消息提供者: {args.provider}")
+            print_info(f"支持的提供者: {', '.join(manager.get_available_providers())}")
+            return
+        
+        if not manager.config["providers"][provider_name].get("enabled", False):
+            print_error(f"消息提供者 {provider_name.upper()} 未启用")
+            print_info(f"请先使用 'bddriver messaging config {provider_name}' 进行配置")
+            return
+        
+        print_info(f"🧪 测试消息提供者: {provider_name.upper()}")
+        print("=" * 60)
+        
+        # 检查配置是否完整
+        provider_status = manager.get_status()["providers"][provider_name]
+        if not provider_status.get("config_complete", False):
+            print_warning(f"消息提供者 {provider_name.upper()} 配置不完整")
+            print_info("请检查配置信息")
+            return
+        
+        print("📤 正在发送测试消息...")
+        
+        if manager.test_provider(provider_name):
+            print_success(f"消息提供者 {provider_name.upper()} 测试成功！")
+            print("✅ 配置正确，可以正常使用")
+        else:
+            print_error(f"消息提供者 {provider_name.upper()} 测试失败")
+            print("❌ 请检查配置信息或网络连接")
+        
+    except Exception as e:
+        logger.error(f"测试消息提供者失败: {e}")
+        print_error(f"测试消息提供者失败: {e}")
+
+
+def cmd_messaging_subscribe(args) -> None:
+    """获取消息提供者订阅信息"""
+    logger = setup_logger(verbose=args.verbose)
+    
+    try:
+        from .messaging import get_messaging_manager
+        
+        manager = get_messaging_manager()
+        provider_name = args.provider.lower()
+        
+        if provider_name not in manager.get_available_providers():
+            print_error(f"不支持的消息提供者: {args.provider}")
+            print_info(f"支持的提供者: {', '.join(manager.get_available_providers())}")
+            return
+        
+        print_info(f"📱 获取订阅信息: {provider_name.upper()}")
+        print("=" * 60)
+        
+        # 获取订阅信息
+        subscribe_info = manager.get_subscription_info(provider_name)
+        
+        if subscribe_info.get("success"):
+            print_success("✅ 订阅信息获取成功")
+            print()
+            
+            if provider_name == "wxpusher":
+                print("🔗 订阅地址:")
+                print(f"   {subscribe_info.get('subscribe_url', 'N/A')}")
+                print()
+                print("📱 订阅二维码:")
+                print(f"   {subscribe_info.get('qr_code', 'N/A')}")
+                print()
+                print("🔑 二维码Code:")
+                print(f"   {subscribe_info.get('qrcode_code', 'N/A')}")
+                print()
+                print("⏰ 有效期:")
+                print(f"   {subscribe_info.get('expires_in', 'N/A')} 秒")
+                print()
+                print("📋 应用名称:")
+                print(f"   {subscribe_info.get('app_name', 'N/A')}")
+                print()
+                
+                qrcode_code = subscribe_info.get('qrcode_code')
+                
+                # 自动轮询扫码状态
+                if qrcode_code:
+                    print("🔄 自动轮询扫码状态...")
+                    print("💡 用户扫码后会自动获取UID")
+                    print("💡 按 Ctrl+C 可以随时退出轮询")
+                    print()
+                    
+                    try:
+                        poll_result = manager.poll_scan_status(qrcode_code, provider_name, 10, 999999)
+                        
+                        if poll_result.get("success") and poll_result.get("scanned"):
+                            print()
+                            print_success("🎉 轮询成功！用户已扫码完成订阅！")
+                            print("📋 扫码信息:")
+                            print(f"   UID: {poll_result.get('uid', 'N/A')}")
+                            print(f"   扫码时间: {poll_result.get('scan_time', 'N/A')}")
+                            if poll_result.get('extra'):
+                                print(f"   额外参数: {poll_result.get('extra', 'N/A')}")
+                            print(f"   轮询次数: {poll_result.get('attempts', 'N/A')}")
+                            print(f"   总耗时: {poll_result.get('total_time', 'N/A')} 秒")
+                            print()
+                            print("💡 现在可以使用此UID发送消息了！")
+                        else:
+                            print(f"❌ 轮询失败: {poll_result.get('msg', '未知错误')}")
+                    except KeyboardInterrupt:
+                        print()
+                        print_warning("⚠️ 轮询被用户中断")
+                        print("💡 可以使用 'bddriver messaging poll <code>' 手动轮询")
+            else:
+                print("📋 订阅信息:")
+                for key, value in subscribe_info.items():
+                    if key != "success" and key != "data":
+                        print(f"   {key}: {value}")
+        else:
+            print_error(f"❌ 获取订阅信息失败: {subscribe_info.get('msg', '未知错误')}")
+            
+    except Exception as e:
+        logger.error(f"获取订阅信息失败: {e}")
+        print_error(f"获取订阅信息失败: {e}")
+
+
+def cmd_messaging_poll(args) -> None:
+    """轮询扫码状态直到获得用户UID"""
+    logger = setup_logger(verbose=args.verbose)
+    
+    try:
+        from .messaging import get_messaging_manager
+        
+        manager = get_messaging_manager()
+        provider_name = args.provider.lower()
+        
+        if provider_name not in manager.get_available_providers():
+            print_error(f"不支持的消息提供者: {args.provider}")
+            print_info(f"支持的提供者: {', '.join(manager.get_available_providers())}")
+            return
+        
+        print_info(f"🔄 轮询扫码状态: {provider_name.upper()}")
+        print("=" * 60)
+        print(f"🔑 二维码Code: {args.code}")
+        print(f"⏰ 轮询间隔: {args.interval} 秒")
+        print(f"🔢 最大次数: {args.max_attempts} 次")
+        print()
+        
+        poll_result = manager.poll_scan_status(args.code, provider_name, args.interval, args.max_attempts)
+        
+        if poll_result.get("success") and poll_result.get("scanned"):
+            print()
+            print_success("🎉 轮询成功！用户已扫码完成订阅！")
+            print("📋 扫码信息:")
+            print(f"   UID: {poll_result.get('uid', 'N/A')}")
+            print(f"   扫码时间: {poll_result.get('scan_time', 'N/A')}")
+            if poll_result.get('extra'):
+                print(f"   额外参数: {poll_result.get('extra', 'N/A')}")
+            print(f"   轮询次数: {poll_result.get('attempts', 'N/A')}")
+            print(f"   总耗时: {poll_result.get('total_time', 'N/A')} 秒")
+            print()
+            print("💡 现在可以使用此UID发送消息了！")
+        else:
+            print_error(f"❌ 轮询失败: {poll_result.get('msg', '未知错误')}")
+            
+    except Exception as e:
+        logger.error(f"轮询扫码状态失败: {e}")
+        print_error(f"轮询扫码状态失败: {e}")
+
+
+def cmd_messaging_disable(args) -> None:
+    """禁用消息提供者"""
+    logger = setup_logger(verbose=args.verbose)
+    
+    try:
+        from .messaging import get_messaging_manager
+        
+        manager = get_messaging_manager()
+        provider_name = args.provider.lower()
+        
+        if provider_name not in manager.get_available_providers():
+            print_error(f"不支持的消息提供者: {args.provider}")
+            print_info(f"支持的提供者: {', '.join(manager.get_available_providers())}")
+            return
+        
+        if not manager.config["providers"][provider_name].get("enabled", False):
+            print_info(f"消息提供者 {provider_name.upper()} 已经是禁用状态")
+            return
+        
+        if manager.disable_provider(provider_name):
+            print_success(f"消息提供者 {provider_name.upper()} 已禁用")
+        else:
+            print_error(f"禁用消息提供者失败")
+        
+    except Exception as e:
+        logger.error(f"禁用消息提供者失败: {e}")
+        print_error(f"禁用消息提供者失败: {e}")
+
+
 def load_token_from_args(args) -> Optional[str]:
     """从参数中加载 token"""
 
@@ -628,6 +1019,59 @@ def main():
     # 信息命令
     info_parser = subparsers.add_parser("info", help="显示版本和配置信息")
     info_parser.set_defaults(func=cmd_info)
+
+    # 消息提供者管理命令
+    messaging_parser = subparsers.add_parser("messaging", help="管理消息提供者")
+    messaging_subparsers = messaging_parser.add_subparsers(dest="messaging_command", help="消息提供者命令")
+    
+    # 列出所有消息提供者
+    list_parser = messaging_subparsers.add_parser("list", help="列出所有可用的消息提供者")
+    list_parser.set_defaults(func=cmd_messaging_list)
+    
+    # 配置消息提供者
+    config_parser = messaging_subparsers.add_parser("config", help="配置指定的消息提供者")
+    config_parser.add_argument("provider", help="提供者名称")
+    config_parser.add_argument("--app-token", help="WxPusher app_token")
+    config_parser.add_argument("--webhook-url", help="钉钉 webhook_url")
+    config_parser.add_argument("--secret", help="钉钉 secret (可选)")
+    config_parser.add_argument("--corp-id", help="企业微信 corp_id")
+    config_parser.add_argument("--agent-id", help="企业微信 agent_id")
+    config_parser.add_argument("--smtp-host", help="邮件 SMTP 服务器地址")
+    config_parser.add_argument("--smtp-port", help="邮件 SMTP 端口 (默认587)")
+    config_parser.add_argument("--username", help="邮件 用户名")
+    config_parser.add_argument("--password", help="邮件 密码/应用密码")
+    config_parser.set_defaults(func=cmd_messaging_config)
+    
+    # 切换默认消息提供者
+    switch_parser = messaging_subparsers.add_parser("switch", help="切换默认消息提供者")
+    switch_parser.add_argument("provider", help="提供者名称")
+    switch_parser.set_defaults(func=cmd_messaging_switch)
+    
+    # 测试消息提供者
+    test_parser = messaging_subparsers.add_parser("test", help="测试消息提供者")
+    test_parser.add_argument("provider", help="提供者名称")
+    test_parser.set_defaults(func=cmd_messaging_test)
+    
+    # 获取订阅信息
+    subscribe_parser = messaging_subparsers.add_parser("subscribe", help="获取消息提供者订阅信息")
+    subscribe_parser.add_argument("provider", nargs="?", default="wxpusher", help="提供者名称 (默认: wxpusher)")
+    subscribe_parser.set_defaults(func=cmd_messaging_subscribe)
+    
+    # 轮询扫码状态
+    poll_parser = messaging_subparsers.add_parser("poll", help="轮询扫码状态直到获得用户UID")
+    poll_parser.add_argument("code", help="二维码的code参数")
+    poll_parser.add_argument("provider", nargs="?", default="wxpusher", help="提供者名称 (默认: wxpusher)")
+    poll_parser.add_argument("--interval", "-i", type=int, default=15, help="轮询间隔，单位秒 (默认: 15)")
+    poll_parser.add_argument("--max-attempts", "-m", type=int, default=120, help="最大轮询次数 (默认: 120)")
+    poll_parser.set_defaults(func=cmd_messaging_poll)
+    
+    # 禁用消息提供者
+    disable_parser = messaging_subparsers.add_parser("disable", help="禁用消息提供者")
+    disable_parser.add_argument("provider", help="提供者名称")
+    disable_parser.set_defaults(func=cmd_messaging_disable)
+    
+    # 设置默认函数
+    messaging_parser.set_defaults(func=lambda args: print_error("请指定一个消息提供者命令 (list, config, switch, test, subscribe, poll, disable)"))
 
     # 解析参数
     args = parser.parse_args()

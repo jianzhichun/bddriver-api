@@ -34,7 +34,7 @@ class WxPusherConfig:
     """WxPusher 配置"""
 
     app_token: str = "AT_xyiuJwTytQRirHTQdmS3otsCQhfUVfqd"
-    base_url: str = "https://wxpusher.zjiecode.com/api"
+    base_url: str = "https://wxpusher.zjiecode.com"
     user_agent: str = "BaiduDriver/1.0"
     timeout: int = 30
     max_retries: int = 3
@@ -48,6 +48,10 @@ class GeneralConfig:
     max_retries: int = 3
     auth_timeout: int = 300  # 5分钟授权超时
     device_auth_timeout: int = 600  # 10分钟设备码授权超时
+    
+    # 消息通知配置
+    message_provider: str = "wxpusher"  # 默认使用WxPusher
+    show_auth_info: bool = True  # 是否显示授权信息
 
 
 class BuiltinConfig:

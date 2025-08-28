@@ -6,9 +6,10 @@
 
 import re
 from typing import Dict, Any, Optional
+from .base import BaseMessageProvider
 
 
-class EmailProvider:
+class EmailProvider(BaseMessageProvider):
     """邮件消息提供者"""
     
     def __init__(self, config: Dict[str, Any]):
@@ -28,10 +29,12 @@ class EmailProvider:
         return re.match(email_pattern, user_id) is not None
     
     def send_message(
-        self, 
-        user_id: str, 
-        message: str, 
-        title: Optional[str] = None,
+        self,
+        user_id: str,
+        content: str,
+        summary: Optional[str] = None,
+        content_type: int = 1,
+        url: Optional[str] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """发送邮件"""
@@ -41,7 +44,8 @@ class EmailProvider:
             "success": True,
             "provider": "email",
             "user_id": user_id,
-            "message": message
+            "content": content,
+            "summary": summary
         }
     
     def get_supported_features(self) -> list:

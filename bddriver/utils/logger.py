@@ -164,6 +164,16 @@ class BaiduDriverLogger:
             return logging.getLogger(f"bddriver.{name}")
         return self.logger
 
+    def reconfigure_logging(self, log_level: str) -> None:
+        """重新配置日志级别
+        
+        Args:
+            log_level: 日志级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        """
+        self.logger.setLevel(getattr(logging, log_level.upper(), logging.WARNING))
+        for handler in self.logger.handlers:
+            handler.setLevel(getattr(logging, log_level.upper(), logging.WARNING))
+
 
 # 全局日志管理器实例
 _logger_manager = BaiduDriverLogger()
@@ -172,6 +182,15 @@ _logger_manager = BaiduDriverLogger()
 def get_logger(name: str = None) -> logging.Logger:
     """获取日志器的便捷函数"""
     return _logger_manager.get_logger(name)
+
+
+def reconfigure_logging(log_level: str) -> None:
+    """重新配置日志级别
+    
+    Args:
+        log_level: 日志级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    """
+    _logger_manager.reconfigure_logging(log_level)
 
 
 def log_api_call(

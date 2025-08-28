@@ -5,9 +5,10 @@
 """
 
 from typing import Dict, Any, Optional
+from .base import BaseMessageProvider
 
 
-class WeChatWorkProvider:
+class WeChatWorkProvider(BaseMessageProvider):
     """企业微信消息提供者"""
     
     def __init__(self, config: Dict[str, Any]):
@@ -26,10 +27,12 @@ class WeChatWorkProvider:
         return len(user_id) > 0 and not user_id.isspace()
     
     def send_message(
-        self, 
-        user_id: str, 
-        message: str, 
-        title: Optional[str] = None,
+        self,
+        user_id: str,
+        content: str,
+        summary: Optional[str] = None,
+        content_type: int = 1,
+        url: Optional[str] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """发送企业微信消息"""
@@ -39,5 +42,6 @@ class WeChatWorkProvider:
             "success": True,
             "provider": "wechat_work",
             "user_id": user_id,
-            "message": message
+            "content": content,
+            "summary": summary
         }

@@ -1,14 +1,13 @@
 # BaiduDriver - 百度网盘授权驱动 SDK
 
-让用户 A 在授权后安全访问用户 B 的百度网盘文件。支持程序调用与命令行使用，默认非交互、可脚本化，开箱即用。
+基于设备码授权的百度网盘访问解决方案，支持多通道消息通知，无需回调链接，开箱即用。
 
 ## ✨ 功能特性
 
-- 🔐 零额外配置：内置必要配置，直接使用
-- 📱 多通道通知：支持WxPusher、钉钉、企业微信、邮件等多种推送渠道
-- 🧪 覆盖测试：提供示例与测试，便于集成验证
-- 🚀 设备码授权：支持无需回调链接的设备码模式授权
-- 🔌 可扩展架构：基于抽象接口，轻松添加新的消息推送渠道
+- 🔐 **设备码授权**：无需公网IP，支持设备码模式授权
+- 📱 **智能通知**：WxPusher内置支持，自动轮询用户订阅状态
+- 🚀 **零配置**：内置必要配置，支持命令行和程序调用
+- 🔌 **可扩展**：基于抽象接口，支持多种消息推送渠道
 
 ## 📦 安装
 
@@ -22,94 +21,104 @@ pip install bddriver
 pip install -e .
 ```
 
-## 🧭 快速上手（Python）
+## 🧭 快速上手
 
-### 基础用法
+### 设备码授权（推荐）
 
 ```python
 from bddriver import BaiduDriver
 
 driver = BaiduDriver()
 
-# 发起授权请求（WxPusher 会向目标用户推送授权链接）
-result = driver.request_access(
-    target_user_id="UID_xxx",   # WxPusher UID
-    file_path="/",
-    description="申请访问根目录"
+# 设备码授权（无需回调链接）
+auth_result = driver.request_device_access(
+    target_user_id="UID_xxxxxxxxx",
+    scope="basic,netdisk,netdisk_quota",
+    timeout=600
 )
 
-access_token = result["access_token"]
-files = driver.list_files(access_token, path="/")
+# 文件操作
+files = driver.list_files(auth_result['access_token'], "/")
+print(f"根目录文件数量: {len(files)}")
 ```
 
-### 设备码授权（推荐）
-
-```python
-from bddriver import BaiduDriver
-from bddriver.utils.errors import AuthTimeoutError, WxPusherError
-
-try:
-    driver = BaiduDriver()
-    
-    # 设备码授权（无需回调链接）
-    auth_result = driver.request_device_access(
-        target_user_id="UID_xxxxxxxxx",
-        scope="basic,netdisk,netdisk_quota",
-        timeout=600
-    )
-    
-    print(f"授权成功！Token: {auth_result['access_token'][:20]}...")
-    
-    # 文件操作
-    files = driver.list_files(auth_result['access_token'], "/")
-    print(f"根目录文件数量: {len(files)}")
-    
-except AuthTimeoutError:
-    print("授权超时，请检查用户是否及时完成授权")
-except WxPusherError as e:
-    print(f"WxPusher推送失败: {e}")
-```
-
-更多示例见 `examples/`：
-
-- `examples/basic_usage.py`
-- `examples/file_operations.py`
-- `examples/device_auth.py`
+更多示例见 `examples/` 目录。
 
 ## 🖥️ 命令行 CLI
 
-安装后提供 `bddriver` 命令，支持设备码授权模式：
+```bash
+# 设备码授权
+bddriver auth UID_xxxxx
+
+# 文件操作
+bddriver ls /
+bddriver download <remote> <local> --progress
+bddriver upload <local> <remote> --progress
+```
+```
+
+### 消息提供者管理
 
 ```bash
-# 基础设备码授权（自动保存到 bddriver_token.json）
-bddriver device-auth UID_xxxxx
+# 查看所有消息提供者状态
+bddriver messaging list
 
-# 指定授权范围和超时时间
-bddriver device-auth UID_xxxxx --scope "basic,netdisk,netdisk_quota" --timeout 600
+# 配置钉钉消息提供者
+bddriver messaging config dingtalk --webhook-url "https://oapi.dingtalk.com/robot/send?access_token=xxx"
 
-# 自定义保存路径
-bddriver device-auth UID_xxxxx --save-token my_custom_token.json
+# 切换默认消息提供者
+bddriver messaging switch dingtalk
+
+# 测试消息提供者配置
+bddriver messaging test dingtalk
+
+# 禁用消息提供者
+bddriver messaging disable wxpusher
+
+# 获取订阅信息并自动轮询
+bddriver messaging subscribe wxpusher
+
+# 手动轮询指定二维码
+bddriver messaging poll <qrcode_code>
 ```
+
+### 订阅功能
+
+WxPusher支持带参数的二维码订阅功能，可以跟踪用户身份，实现用户绑定：
+
+```bash
+# 获取订阅信息并自动轮询扫码状态
+bddriver messaging subscribe wxpusher
+
+# 手动轮询指定二维码的扫码状态
+bddriver messaging poll <qrcode_code>
+```
+
+**功能特性**：
+- **自动二维码生成**：每次运行生成带时间戳的唯一二维码
+- **智能轮询**：默认10秒间隔自动查询扫码状态
+- **用户绑定**：获取用户UID后实现业务用户与WxPusher UID的绑定
+- **实时监控**：支持Ctrl+C随时退出轮询
+
+**使用场景**：
+- 论坛用户订阅：用户扫码后绑定论坛账号
+- 网站用户订阅：跟踪用户来源和订阅行为
+- 应用内订阅：实现设备或用户身份绑定
 
 ### 完整使用流程
 
 ```bash
-# 1. 设备码授权（自动保存token）
-bddriver device-auth UID_xxxxx
+# 1. 配置WxPusher（首次使用）
+bddriver messaging config wxpusher --app-token YOUR_APP_TOKEN
 
-# 2. 授权成功后的输出示例
-✅ 设备码授权成功！
-✅ Token 已自动保存到: bddriver_token.json
-ℹ️  访问令牌: 123456789abc...
-ℹ️  过期时间: 2025-08-28 09:00:00
+# 2. 获取订阅二维码并自动轮询
+bddriver messaging subscribe wxpusher
 
-# 3. 立即使用文件操作命令（自动使用默认token文件）
-bddriver ls /
-bddriver download /photos/vacation.jpg ./vacation.jpg --progress
-bddriver upload ./new_photo.jpg /photos/new_photo.jpg --progress
+# 3. 用户扫码订阅
+# 系统自动获取用户UID，完成用户绑定
 
-# 4. 或指定token文件
-bddriver ls / --token-file my_custom_token.json
+# 4. 发送消息
+bddriver messaging test wxpusher
 ```
 
 ### Token 管理策略
@@ -302,14 +311,13 @@ provider = registry.detect_provider_by_user_id("user@example.com")  # 邮件
 - `user@example.com` → 邮件
 - `wwxxxxx` → 企业微信
 
-## 📚 参考与示例
+## 📚 参考
 
-- 代码结构与入口：`bddriver/client.py`、`bddriver/cli.py`
-- 授权与服务器：`bddriver/auth/*`
+- 核心模块：`bddriver/client.py`、`bddriver/cli.py`
+- 授权管理：`bddriver/auth/*`
 - 文件操作：`bddriver/fileops/*`
 - 消息推送：`bddriver/messaging/*`
-- 示例：`examples/`
-- 多提供者演示：`examples/multi_provider_demo.py`
+- 使用示例：`examples/`
 
 ## 👨‍💻 作者
 
@@ -323,74 +331,32 @@ provider = registry.detect_provider_by_user_id("user@example.com")  # 邮件
 pytest -q
 ```
 
-## 🚀 开发环境设置
-
-### 使用 uv 管理依赖
-
-本项目使用 `uv` 作为包管理器和构建工具：
+## 🚀 开发
 
 ```bash
-# 创建虚拟环境
-uv venv
-
-# 激活虚拟环境
-source .venv/bin/activate
-
 # 安装开发依赖
-uv pip install -e ".[dev]"
+pip install -e ".[dev]"
 
-# 或使用 Makefile
-make dev
-```
-
-### 开发命令
-
-```bash
 # 运行测试
-make test
+pytest
 
 # 代码格式化
-make format
-
-# 代码检查
-make lint
-
-# 清理构建文件
-make clean
-
-# 构建包
-make build
-```
-
-### 项目结构
-
-```
-bddriver-api/
-├── bddriver/           # 主包
-├── examples/           # 使用示例
-├── tests/             # 测试文件
-├── lib/               # 第三方库
-├── pyproject.toml     # 项目配置
-├── Makefile          # 开发命令
-└── README.md         # 项目文档
+black bddriver/ tests/
 ```
 
 ## 📝 更新日志
 
 ### v1.1.0 (2025-08-28)
-- 🔌 新增消息推送抽象架构，支持多种推送渠道
-- 📱 支持钉钉、企业微信、邮件等新推送方式
-- 🔄 重构WxPusher客户端，使用新的抽象接口
-- 🧹 清理旧的模板系统，保持向后兼容性
-- 📚 更新文档，说明新的消息架构
+- 🔌 新增消息推送抽象架构
+- 📱 支持多种推送渠道
+- 🔄 重构WxPusher客户端
+- 📚 更新文档
 
 ### v1.0.0 (2025-08-28)
-- ✨ 移除 ngrok 和临时服务器依赖
-- 🔄 简化授权流程，仅支持设备码授权
-- 📚 合并文档到单一 README.md
-- 🛠️ 迁移到 uv + pyproject.toml
-- 👨‍💻 更新作者信息
-- 🧹 清理代码和配置
+- ✨ 移除ngrok依赖
+- 🔄 简化授权流程
+- 📚 合并文档
+- 🛠️ 迁移到pyproject.toml
 
 ##  许可证
 

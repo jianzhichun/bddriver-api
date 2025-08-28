@@ -14,7 +14,7 @@ from typing import Dict, Any, Optional
 from ..utils.errors import AuthTimeoutError, BaiduDriveError, WxPusherError
 from ..utils.logger import get_auth_logger, log_operation_start, log_operation_end, log_error
 from ..config import config
-from ..messaging.wxpusher_provider import WxPusherProvider
+from ..messaging import get_messaging_manager
 
 from .oauth import OAuthManager
 
@@ -36,9 +36,28 @@ class AuthManager:
 
         # 初始化组件
         self.oauth_manager = OAuthManager()
-        self.wxpusher_client = WxPusherProvider()
+        
+        # 使用消息提供者管理器
+        self.messaging_manager = get_messaging_manager()
+        self.provider_name = self.messaging_manager.get_default_provider()
 
         self.logger.info("授权管理器初始化完成")
+    
+    def switch_message_provider(self, provider_name: str):
+        """切换消息提供者
+        
+        Args:
+            provider_name: 新的提供者名称 (wxpusher, dingtalk, wechat_work, email)
+        """
+        if self.messaging_manager.set_default_provider(provider_name):
+            self.provider_name = provider_name
+            self.logger.info(f"已切换到消息提供者: {provider_name}")
+        else:
+            raise ValueError(f"无法切换到消息提供者: {provider_name}")
+    
+    def get_current_provider_name(self) -> str:
+        """获取当前使用的消息提供者名称"""
+        return self.provider_name
 
     def _build_token_result(self, token_data: Dict[str, Any], scope: str = None, 
                            target_user_id: str = None, auth_method: str = "device_code") -> Dict[str, Any]:
@@ -156,7 +175,8 @@ class AuthManager:
     ) -> None:
         """发送设备码授权通知"""
         try:
-            result = self.wxpusher_client.send_device_auth_notification(
+            message_provider = self.messaging_manager.get_provider_instance()
+            result = message_provider.send_device_auth_notification(
                 user_id=target_user_id,
                 user_code=user_code,
                 verification_url=verification_url,
@@ -177,7 +197,8 @@ class AuthManager:
     ) -> None:
         """发送授权成功通知"""
         try:
-            result = self.wxpusher_client.send_success_notification(
+            message_provider = self.messaging_manager.get_provider_instance()
+            result = message_provider.send_success_notification(
                 user_id=target_user_id
             )
 
@@ -238,9 +259,13 @@ class AuthManager:
             if hasattr(self.oauth_manager, "cleanup"):
                 self.oauth_manager.cleanup()
 
-            # 清理WxPusher客户端
-            if hasattr(self.wxpusher_client, "cleanup"):
-                self.wxpusher_client.cleanup()
+            # 清理消息提供者
+            try:
+                message_provider = self.messaging_manager.get_provider_instance()
+                if hasattr(message_provider, "cleanup"):
+                    message_provider.cleanup()
+            except Exception as e:
+                self.logger.warning(f"清理消息提供者时发生异常: {e}")
 
             self.logger.info("授权管理器资源清理完成")
 
