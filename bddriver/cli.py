@@ -15,13 +15,18 @@ from .utils.errors import BaiduDriverError
 from .utils.logger import get_logger
 
 
-def setup_logger():
+def setup_logger(verbose: bool = False):
     """设置 CLI 日志"""
     import os
 
+    # 根据verbose参数设置日志级别
+    if verbose:
+        os.environ.setdefault("BDDRIVER_LOG_LEVEL", "DEBUG")
+    else:
+        os.environ.setdefault("BDDRIVER_LOG_LEVEL", "WARNING")
+
     # 设置环境变量以获得简洁的控制台输出
     os.environ.setdefault("BDDRIVER_LOG_FORMAT", "console")
-    os.environ.setdefault("BDDRIVER_LOG_LEVEL", "INFO")
 
     return get_logger("cli")
 
@@ -113,7 +118,7 @@ def format_file_list(files: List[dict], detailed: bool = False) -> None:
 
 def cmd_device_auth(args) -> Optional[dict]:
     """设备码授权命令"""
-    logger = setup_logger()
+    logger = setup_logger(verbose=args.verbose)
 
     try:
         print_info(f"发起设备码授权请求...")
@@ -199,7 +204,7 @@ def cmd_device_auth(args) -> Optional[dict]:
 
 def cmd_list(args) -> None:
     """列表命令"""
-    logger = setup_logger()
+    logger = setup_logger(verbose=args.verbose)
 
     try:
         # 获取 token
@@ -231,7 +236,7 @@ def cmd_list(args) -> None:
 
 def cmd_download(args) -> None:
     """下载命令"""
-    logger = setup_logger()
+    logger = setup_logger(verbose=args.verbose)
 
     try:
         access_token = load_token_from_args(args)
@@ -274,7 +279,7 @@ def cmd_download(args) -> None:
 
 def cmd_upload(args) -> None:
     """上传命令"""
-    logger = setup_logger()
+    logger = setup_logger(verbose=args.verbose)
 
     try:
         access_token = load_token_from_args(args)
@@ -322,7 +327,7 @@ def cmd_upload(args) -> None:
 
 def cmd_mkdir(args) -> None:
     """创建文件夹命令"""
-    logger = setup_logger()
+    logger = setup_logger(verbose=args.verbose)
 
     try:
         access_token = load_token_from_args(args)
@@ -349,7 +354,7 @@ def cmd_mkdir(args) -> None:
 
 def cmd_copy(args) -> None:
     """复制命令"""
-    logger = setup_logger()
+    logger = setup_logger(verbose=args.verbose)
 
     try:
         access_token = load_token_from_args(args)
@@ -381,7 +386,7 @@ def cmd_copy(args) -> None:
 
 def cmd_move(args) -> None:
     """移动命令"""
-    logger = setup_logger()
+    logger = setup_logger(verbose=args.verbose)
 
     try:
         access_token = load_token_from_args(args)
@@ -413,7 +418,7 @@ def cmd_move(args) -> None:
 
 def cmd_delete(args) -> None:
     """删除命令"""
-    logger = setup_logger()
+    logger = setup_logger(verbose=args.verbose)
 
     try:
         access_token = load_token_from_args(args)
@@ -448,6 +453,8 @@ def cmd_delete(args) -> None:
 
 def cmd_info(args) -> None:
     """信息命令"""
+    logger = setup_logger(verbose=args.verbose)
+    
     print_info(f"BaiduDriver CLI v{__version__}")
     print_info(f"零配置百度网盘授权驱动")
     print()
@@ -509,6 +516,12 @@ def main():
 
     parser.add_argument(
         "--version", action="version", version=f"bddriver {__version__}"
+    )
+    
+    # 全局选项
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", 
+        help="显示详细日志信息（DEBUG级别）"
     )
 
     # 子命令
