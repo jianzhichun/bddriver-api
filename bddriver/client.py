@@ -11,6 +11,10 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from .auth import AuthManager
 from .config import config
 from .fileops import FileOperationsManager
+from .hooks import (
+    HookEvent, HookContext, HookResult, hook_manager,
+    execute_hooks, execute_async_hooks
+)
 from .utils.errors import (
     AuthTimeoutError,
     BaiduDriveError,
@@ -54,10 +58,14 @@ class BaiduDriver:
         # 状态管理
         self._current_tokens: Dict[str, Dict[str, Any]] = {}
 
+        # 钩子管理器
+        self.hook_manager = hook_manager
+
         self.logger.info("BaiduDriver 客户端初始化完成")
 
     def request_device_access(
-        self, target_user_id: str, scope: str = None, timeout: int = None
+        self, target_user_id: str, scope: str = None, timeout: int = None,
+        hook_data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """使用设备码模式获取访问授权
 
@@ -65,6 +73,7 @@ class BaiduDriver:
             target_user_id: 目标用户的 WxPusher UID
             scope: 授权范围，默认为 'basic,netdisk'
             timeout: 授权超时时间（秒）
+            hook_data: 传递给钩子的额外数据
 
         Returns:
             授权结果，包含 access_token
@@ -77,7 +86,56 @@ class BaiduDriver:
         Note:
             设备码模式无需回调链接，适合任何环境部署
         """
-        return self.auth_manager.request_device_access(target_user_id, scope, timeout)
+        # 执行授权前钩子
+        hook_context = HookContext(
+            event=HookEvent.BEFORE_AUTH_REQUEST,
+            data={
+                "target_user_id": target_user_id,
+                "scope": scope,
+                "timeout": timeout,
+                **(hook_data or {})
+            }
+        )
+        
+        hook_result = execute_hooks(HookEvent.BEFORE_AUTH_REQUEST, hook_context)
+        if not hook_result.success:
+            raise BaiduDriverError(f"授权前钩子执行失败: {hook_result.error}")
+        if not hook_result.should_continue:
+            raise BaiduDriverError(f"授权被钩子阻止: {hook_result.error}")
+        
+        try:
+            # 执行授权
+            auth_result = self.auth_manager.request_device_access(target_user_id, scope, timeout)
+            
+            # 执行授权成功钩子
+            success_context = HookContext(
+                event=HookEvent.AFTER_AUTH_SUCCESS,
+                data={
+                    "target_user_id": target_user_id,
+                    "scope": scope,
+                    "timeout": timeout,
+                    "auth_result": auth_result,
+                    **(hook_data or {})
+                }
+            )
+            execute_hooks(HookEvent.AFTER_AUTH_SUCCESS, success_context)
+            
+            return auth_result
+            
+        except Exception as e:
+            # 执行授权失败钩子
+            failure_context = HookContext(
+                event=HookEvent.AFTER_AUTH_FAILURE,
+                data={
+                    "target_user_id": target_user_id,
+                    "scope": scope,
+                    "timeout": timeout,
+                    "error": str(e),
+                    **(hook_data or {})
+                }
+            )
+            execute_hooks(HookEvent.AFTER_AUTH_FAILURE, failure_context)
+            raise
 
     def refresh_access_token(self, refresh_token: str) -> Dict[str, Any]:
         """刷新访问令牌
@@ -110,6 +168,7 @@ class BaiduDriver:
         limit: int = 100,
         order: str = "time",
         desc: bool = True,
+        hook_data: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """列出文件和文件夹
 
@@ -119,6 +178,7 @@ class BaiduDriver:
             limit: 返回数量限制，默认 100，最大 1000
             order: 排序方式，可选 time/size/name
             desc: 是否降序排列
+            hook_data: 传递给钩子的额外数据
 
         Returns:
             文件列表，每个文件包含：
@@ -136,15 +196,70 @@ class BaiduDriver:
         """
         self.logger.info(f"列出文件: {path}")
 
+        # 执行文件操作前钩子
+        hook_context = HookContext(
+            event=HookEvent.BEFORE_FILE_OPERATION,
+            data={
+                "operation": "list_files",
+                "access_token": access_token,
+                "path": path,
+                "limit": limit,
+                "order": order,
+                "desc": desc,
+                **(hook_data or {})
+            }
+        )
+        
+        hook_result = execute_hooks(HookEvent.BEFORE_FILE_OPERATION, hook_context)
+        if not hook_result.success:
+            raise BaiduDriverError(f"文件操作前钩子执行失败: {hook_result.error}")
+        if not hook_result.should_continue:
+            raise BaiduDriverError(f"文件操作被钩子阻止: {hook_result.error}")
+
         try:
-            return self.file_manager.list_files(
+            # 执行文件操作
+            result = self.file_manager.list_files(
                 access_token=access_token,
                 path=path,
                 limit=limit,
                 order=order,
                 desc=desc,
             )
+            
+            # 执行文件操作后钩子
+            after_context = HookContext(
+                event=HookEvent.AFTER_FILE_OPERATION,
+                data={
+                    "operation": "list_files",
+                    "access_token": access_token,
+                    "path": path,
+                    "limit": limit,
+                    "order": order,
+                    "desc": desc,
+                    "result": result,
+                    **(hook_data or {})
+                }
+            )
+            execute_hooks(HookEvent.AFTER_FILE_OPERATION, after_context)
+            
+            return result
+            
         except Exception as e:
+            # 执行文件操作失败钩子
+            failure_context = HookContext(
+                event=HookEvent.AFTER_FILE_OPERATION,
+                data={
+                    "operation": "list_files",
+                    "access_token": access_token,
+                    "path": path,
+                    "limit": limit,
+                    "order": order,
+                    "desc": desc,
+                    "error": str(e),
+                    **(hook_data or {})
+                }
+            )
+            execute_hooks(HookEvent.AFTER_FILE_OPERATION, failure_context)
             self.logger.error(f"列出文件失败: {e}")
             raise
 

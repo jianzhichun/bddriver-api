@@ -8,6 +8,7 @@
 - 📱 **智能通知**：WxPusher内置支持，自动轮询用户订阅状态
 - 🚀 **零配置**：内置必要配置，支持命令行和程序调用
 - 🔌 **可扩展**：基于抽象接口，支持多种消息推送渠道
+- 🪝 **钩子系统**：支持在关键操作前执行自定义逻辑，如支付验证、权限检查
 
 ## 📦 安装
 
@@ -43,6 +44,43 @@ print(f"根目录文件数量: {len(files)}")
 ```
 
 更多示例见 `examples/` 目录。
+
+### 钩子系统
+
+钩子系统允许你在关键操作前执行自定义逻辑，如支付验证、权限检查等：
+
+```python
+from bddriver import BaiduDriver
+from bddriver.hooks import HookEvent, HookContext, HookResult, hook
+
+# 使用装饰器注册钩子
+@hook(HookEvent.BEFORE_AUTH_REQUEST, priority=1)
+def payment_verification(context: HookContext) -> HookResult:
+    """授权请求前的支付验证"""
+    user_id = context.data.get("target_user_id")
+    amount = context.data.get("payment_amount", 0.0)
+    
+    if not verify_payment(user_id, amount):
+        return HookResult.stop("支付验证失败")
+    
+    return HookResult.success()
+
+# 创建客户端并传递钩子数据
+driver = BaiduDriver()
+result = driver.request_device_access(
+    target_user_id="UID_user123",
+    hook_data={"payment_amount": 9.99}
+)
+```
+
+支持的事件类型：
+- `BEFORE_AUTH_REQUEST`: 授权请求前
+- `AFTER_AUTH_SUCCESS`: 授权成功后
+- `AFTER_AUTH_FAILURE`: 授权失败后
+- `BEFORE_FILE_OPERATION`: 文件操作前
+- `AFTER_FILE_OPERATION`: 文件操作后
+
+更多钩子示例见 `examples/hooks_demo.py`。
 
 ## 🖥️ 命令行 CLI
 
@@ -223,7 +261,7 @@ export BDDRIVER_LOG_FORMAT=json
 ### 快速测试
 ```bash
 # 授权后立即测试
-bddriver device-auth UID_xxxxx
+bddriver auth UID_xxxxx
 bddriver ls /
 ```
 
@@ -231,7 +269,7 @@ bddriver ls /
 ```bash
 #!/bin/bash
 # 授权并保存到指定位置
-bddriver device-auth UID_xxxxx --save-token /tmp/baidu_token.json
+bddriver auth UID_xxxxx --save-token /tmp/baidu_token.json
 
 # 使用保存的token进行操作
 bddriver ls / --token-file /tmp/baidu_token.json
@@ -241,10 +279,10 @@ bddriver download /important/file.txt ./backup/ --token-file /tmp/baidu_token.js
 ### 多用户管理
 ```bash
 # 用户A的token
-bddriver device-auth UID_userA --save-token userA_token.json
+bddriver auth UID_userA --save-token userA_token.json
 
 # 用户B的token
-bddriver device-auth UID_userB --save-token userB_token.json
+bddriver auth UID_userB --save-token userB_token.json
 
 # 分别使用
 bddriver ls / --token-file userA_token.json
