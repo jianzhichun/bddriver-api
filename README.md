@@ -82,6 +82,67 @@ result = driver.request_device_access(
 
 更多钩子示例见 `examples/hooks_demo.py`。
 
+#### 异步钩子与阻塞行为
+
+- 授权前与文件操作前，SDK 会先执行同步钩子，再顺序等待异步钩子完成（阻塞），全部通过后才继续后续流程。
+- 任一钩子返回 `HookResult.stop("原因")` 将中断流程并抛错。
+ 
+示例：授权前等待支付完成（带超时）
+
+```python
+from bddriver.hooks import hook, HookEvent, HookContext, HookResult
+import asyncio
+
+@hook(HookEvent.BEFORE_AUTH_REQUEST, priority=1)
+async def pay_before_auth(ctx: HookContext) -> HookResult:
+    async def do_pay():
+        # 调用你的支付网关/轮询支付状态
+        await asyncio.sleep(2)
+        return True
+
+    try:
+        ok = await asyncio.wait_for(do_pay(), timeout=300)
+    except asyncio.TimeoutError:
+        return HookResult.stop("支付超时")
+
+    return HookResult.success() if ok else HookResult.stop("支付失败")
+
+# 使用
+from bddriver import BaiduDriver
+driver = BaiduDriver()
+driver.request_device_access("UID_xxx", hook_data={"amount": 9.99})
+```
+
+进阶：分布式场景用 Redis 记录支付状态（可选）
+
+```python
+from bddriver.hooks import hook, HookEvent, HookContext, HookResult
+import asyncio
+import aioredis
+
+@hook(HookEvent.BEFORE_AUTH_REQUEST, priority=1)
+async def pay_with_redis(ctx: HookContext) -> HookResult:
+    user_id = ctx.data["target_user_id"]
+    order_id = ctx.data["order_id"]
+    redis = await aioredis.from_url("redis://localhost:6379", decode_responses=True)
+
+    # 假设你的支付回调会把状态写到 key: pay:status:{order_id}
+    key = f"pay:status:{order_id}"
+    max_wait, interval = 300, 2
+    waited = 0
+    while waited < max_wait:
+        status = await redis.get(key)  # paid / failed / None
+        if status == "paid":
+            return HookResult.success()
+        if status == "failed":
+            return HookResult.stop("支付失败")
+        await asyncio.sleep(interval)
+        waited += interval
+    return HookResult.stop("支付超时")
+```
+
+更多异步/混合钩子示例见：`examples/async_hooks_demo.py`。
+
 ## 🖥️ 命令行 CLI
 
 ```bash
