@@ -1,0 +1,22 @@
+[flake8]
+max-line-length = 88
+extend-ignore = E203, W503
+exclude = 
+    .venv,
+    .git,
+    __pycache__,
+    build,
+    dist,
+    *.egg-info,
+    bddriver/_vendor,
+    .pytest_cache,
+    .mypy_cache
+per-file-ignores =
+    # Ignore line length for third-party code
+    bddriver/_vendor/*:E501
+    # Ignore import order for examples (they need sys.path manipulation)
+    examples/*:E402
+    # Ignore unused imports for examples (they're demonstration code)
+    examples/*:F401
+    # Ignore line length for examples (they're demonstration code)
+    examples/*:E501

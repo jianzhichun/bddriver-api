@@ -1,0 +1,60 @@
+"""
+Constants for BaiduDriver SDK
+"""
+
+# API Endpoints
+BAIDU_OAUTH_AUTH_URL = "https://openapi.baidu.com/oauth/2.0/authorize"
+BAIDU_OAUTH_TOKEN_URL = "https://openapi.baidu.com/oauth/2.0/token"
+BAIDU_XPAN_API_BASE = "https://pan.baidu.com/rest/2.0/xpan"
+
+# OAuth Scopes
+BAIDU_OAUTH_SCOPES = "basic,netdisk"
+
+# WxPusher API Endpoints
+WXPUSHER_SEND_MESSAGE_URL = "https://wxpusher.zjiecode.com/api/send/message"
+WXPUSHER_USER_INFO_URL = "https://wxpusher.zjiecode.com/api/user/wxuser"
+
+# Content Types for WxPusher
+CONTENT_TYPE_TEXT = 1
+CONTENT_TYPE_HTML = 2
+CONTENT_TYPE_MARKDOWN = 3
+
+# HTTP Status Codes
+HTTP_OK = 200
+HTTP_BAD_REQUEST = 400
+HTTP_UNAUTHORIZED = 401
+HTTP_FORBIDDEN = 403
+HTTP_NOT_FOUND = 404
+HTTP_INTERNAL_SERVER_ERROR = 500
+
+# Error Codes
+ERROR_NETWORK_TIMEOUT = "NETWORK_TIMEOUT"
+ERROR_AUTH_FAILED = "AUTH_FAILED"
+ERROR_AUTH_TIMEOUT = "AUTH_TIMEOUT"
+ERROR_FILE_NOT_FOUND = "FILE_NOT_FOUND"
+ERROR_INSUFFICIENT_SPACE = "INSUFFICIENT_SPACE"
+ERROR_PERMISSION_DENIED = "PERMISSION_DENIED"
+ERROR_INVALID_TOKEN = "INVALID_TOKEN"
+ERROR_TOKEN_EXPIRED = "TOKEN_EXPIRED"
+
+# File Operation Limits
+MAX_FILE_SIZE = 4 * 1024 * 1024 * 1024  # 4GB
+MAX_UPLOAD_CHUNK_SIZE = 4 * 1024 * 1024  # 4MB
+MAX_BATCH_OPERATION_COUNT = 100
+
+# Retry Configuration
+DEFAULT_RETRY_COUNT = 3
+DEFAULT_RETRY_DELAY = 1  # seconds
+EXPONENTIAL_BACKOFF_MULTIPLIER = 2
+
+# Timeout Configuration (seconds)
+DEFAULT_REQUEST_TIMEOUT = 30
+DEFAULT_AUTH_TIMEOUT = 300  # 5 minutes
+DEFAULT_TEMP_SERVER_TIMEOUT = 600  # 10 minutes
+
+
+# Message Templates
+AUTH_REQUEST_TEMPLATE_NAME = "auth_request"
+AUTH_SUCCESS_TEMPLATE_NAME = "auth_success"
+AUTH_FAILED_TEMPLATE_NAME = "auth_failed"
+ERROR_NOTIFICATION_TEMPLATE_NAME = "error_notification"
