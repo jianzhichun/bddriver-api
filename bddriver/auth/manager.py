@@ -9,7 +9,6 @@
 """
 
 import time
-import uuid
 from typing import Dict, Any, Optional
 
 from ..utils.errors import AuthTimeoutError, BaiduDriveError, WxPusherError
@@ -22,6 +21,13 @@ from .oauth import OAuthManager
 
 class AuthManager:
     """授权管理器 - 专门处理设备码授权流程"""
+    
+    # 常量定义
+    DEFAULT_AUTH_TIMEOUT = 600  # 默认授权超时时间（秒）
+    DEFAULT_SCOPE = "basic,netdisk"  # 默认授权范围
+    DEFAULT_TOKEN_TYPE = "Bearer"  # 默认令牌类型
+    DEFAULT_DEVICE_CODE_EXPIRES = 600  # 默认设备码有效期（秒）
+    DEFAULT_POLL_INTERVAL = 5  # 默认轮询间隔（秒）
 
     def __init__(self):
         """初始化授权管理器"""
@@ -33,6 +39,35 @@ class AuthManager:
         self.wxpusher_client = WxPusherProvider()
 
         self.logger.info("授权管理器初始化完成")
+
+    def _build_token_result(self, token_data: Dict[str, Any], scope: str = None, 
+                           target_user_id: str = None, auth_method: str = "device_code") -> Dict[str, Any]:
+        """构建统一的令牌结果字典"""
+        return {
+            "access_token": token_data.get("access_token"),
+            "refresh_token": token_data.get("refresh_token"),
+            "expires_in": token_data.get("expires_in"),
+            "expires_at": token_data.get("expires_at"),
+            "scope": token_data.get("scope", scope or self.DEFAULT_SCOPE),
+            "token_type": token_data.get("token_type", self.DEFAULT_TOKEN_TYPE),
+            "auth_method": auth_method,
+            **({"target_user_id": target_user_id} if target_user_id else {})
+        }
+
+    def _display_auth_info(self, user_code: str, verification_url: str, expires_in: int) -> None:
+        """显示用户授权信息"""
+        # 检查配置是否允许显示授权信息
+        if not getattr(self.general_config, 'show_auth_info', True):
+            return
+            
+        print(f"\n{'='*60}")
+        print(f"🔐 百度网盘设备码授权")
+        print(f"{'='*60}")
+        print(f"📱 请在浏览器中访问: {verification_url}")
+        print(f"🔢 输入用户码: {user_code}")
+        print(f"⏰ 用户码有效期: {expires_in} 秒")
+        print(f"💡 授权完成后，我将自动获取访问权限")
+        print(f"{'='*60}\n")
 
     def request_device_access(
         self, target_user_id: str, scope: str = None, timeout: int = None
@@ -70,16 +105,9 @@ class AuthManager:
             # 2. 显示用户授权信息
             user_code = device_data["user_code"]
             verification_url = device_data["verification_url"]
-            expires_in = device_data.get("expires_in", 600)  # 默认10分钟
+            expires_in = device_data.get("expires_in", self.DEFAULT_DEVICE_CODE_EXPIRES)
 
-            print(f"\n{'='*60}")
-            print(f"🔐 百度网盘设备码授权")
-            print(f"{'='*60}")
-            print(f"📱 请在浏览器中访问: {verification_url}")
-            print(f"🔢 输入用户码: {user_code}")
-            print(f"⏰ 用户码有效期: {expires_in} 秒")
-            print(f"💡 授权完成后，我将自动获取访问权限")
-            print(f"{'='*60}\n")
+            self._display_auth_info(user_code, verification_url, expires_in)
 
             # 3. 推送设备码信息给目标用户
             self._send_device_auth_notification(
@@ -90,7 +118,7 @@ class AuthManager:
             self.logger.info("开始等待用户授权...")
             token_data = self.oauth_manager.poll_device_authorization(
                 device_code=device_data["device_code"],
-                interval=device_data.get("interval", 5),
+                interval=device_data.get("interval", self.DEFAULT_POLL_INTERVAL),
                 timeout=min(timeout, expires_in),
             )
 
@@ -98,16 +126,7 @@ class AuthManager:
             self._send_success_notification(target_user_id, None)
 
             # 6. 构建结果
-            result = {
-                "access_token": token_data.get("access_token"),
-                "refresh_token": token_data.get("refresh_token"),
-                "expires_in": token_data.get("expires_in"),
-                "expires_at": token_data.get("expires_at"),
-                "scope": token_data.get("scope", scope or "basic,netdisk"),
-                "token_type": token_data.get("token_type", "Bearer"),
-                "auth_method": "device_code",
-                "target_user_id": target_user_id,
-            }
+            result = self._build_token_result(token_data, scope, target_user_id)
 
             duration = time.time() - start_time
             log_operation_end(
@@ -120,9 +139,13 @@ class AuthManager:
 
             return result
 
-        except Exception as e:
-            log_error(self.logger, e, operation_name)
+        except (AuthTimeoutError, WxPusherError, BaiduDriveError):
+            # 重新抛出已知的异常类型
             raise
+        except Exception as e:
+            # 记录未知异常并包装为BaiduDriveError
+            log_error(self.logger, e, operation_name)
+            raise BaiduDriveError(f"设备码授权过程中发生未知错误: {e}")
 
     def _send_device_auth_notification(
         self,
@@ -182,14 +205,7 @@ class AuthManager:
             token_data = self.oauth_manager.refresh_token(refresh_token)
 
             self.logger.info("访问令牌刷新成功")
-            return {
-                "access_token": token_data.get("access_token"),
-                "refresh_token": token_data.get("refresh_token"),
-                "expires_in": token_data.get("expires_in"),
-                "expires_at": token_data.get("expires_at"),
-                "scope": token_data.get("scope", "basic,netdisk"),
-                "token_type": token_data.get("token_type", "Bearer"),
-            }
+            return self._build_token_result(token_data, auth_method="refresh")
 
         except Exception as e:
             self.logger.error(f"刷新访问令牌失败: {e}")
