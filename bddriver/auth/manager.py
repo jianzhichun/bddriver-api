@@ -14,7 +14,7 @@ from ..utils.logger import (
     log_operation_end,
     log_operation_start,
 )
-from ..wxpusher.client import WxPusherClient
+from ..messaging.wxpusher.client import WxPusherClient
 
 from .oauth import OAuthManager
 

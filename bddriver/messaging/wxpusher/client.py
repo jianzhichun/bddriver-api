@@ -1,24 +1,26 @@
 """
 WxPusher client for BaiduDriver SDK
 
-基于新的消息抽象接口实现，保持向后兼容性
+直接实现WxPusher消息发送，保持向后兼容性
 """
 
+import requests
 from typing import Any, Dict, Optional
-from ..messaging.wxpusher import WxPusherProvider
-from ..config import config
+from ...config import config
 
 
 class WxPusherClient:
     """WxPusher 微信推送客户端
     
-    基于新的消息抽象接口实现，保持向后兼容性
+    直接实现WxPusher消息发送，保持向后兼容性
     """
     
     def __init__(self):
         """初始化WxPusher客户端"""
         wxpusher_config = config.get_wxpusher_config()
-        self.provider = WxPusherProvider(wxpusher_config.__dict__)
+        self.app_token = wxpusher_config.app_token
+        self.base_url = wxpusher_config.base_url
+        self.api_url = f"{self.base_url}/api/send/message"
     
     def send_message(
         self,
@@ -47,27 +49,52 @@ class WxPusherClient:
         if not target_user:
             raise ValueError("必须指定 user_id 或 uids")
         
-        # 发送消息
-        result = self.provider.send_message(
-            user_id=target_user,
-            message=content,
-            title=summary,
-            url=url,
-            content_type=content_type
-        )
-        
-        # 转换为旧格式的返回结果
-        if result.success:
-            return {
-                "success": True,
-                "messageId": result.message_id,
-                "data": result.metadata or {}
+        try:
+            # 构建请求数据
+            data = {
+                "appToken": self.app_token,
+                "content": content,
+                "summary": summary or "百度网盘通知",
+                "contentType": content_type,
+                "uids": [target_user],
             }
-        else:
+            
+            if url:
+                data["url"] = url
+            
+            # 发送请求
+            response = requests.post(
+                self.api_url,
+                json=data,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("success"):
+                    return {
+                        "success": True,
+                        "messageId": result.get("data", {}).get("messageId"),
+                        "data": result
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "msg": result.get("msg", "发送失败"),
+                        "data": result
+                    }
+            else:
+                return {
+                    "success": False,
+                    "msg": f"HTTP {response.status_code}: {response.text}",
+                    "data": {"status_code": response.status_code}
+                }
+                
+        except Exception as e:
             return {
                 "success": False,
-                "msg": result.error_message or "发送失败",
-                "data": result.metadata or {}
+                "msg": f"发送消息异常: {e}",
+                "data": {}
             }
     
     def send_device_auth_notification(

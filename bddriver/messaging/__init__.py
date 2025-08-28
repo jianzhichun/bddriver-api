@@ -1,16 +1,15 @@
 """
-消息推送抽象模块
+消息推送模块
 
-支持多种消息推送渠道的统一接口
+支持多种消息推送渠道
 """
 
-from .base import MessageProvider, MessageResult
-from .wxpusher import WxPusherProvider
-from .registry import MessageProviderRegistry
+from .wxpusher.client import WxPusherClient
+from .providers import DingTalkProvider, WeChatWorkProvider, EmailProvider
 
 __all__ = [
-    "MessageProvider",
-    "MessageResult", 
-    "WxPusherProvider",
-    "MessageProviderRegistry"
+    "WxPusherClient",
+    "DingTalkProvider",
+    "WeChatWorkProvider", 
+    "EmailProvider"
 ]
