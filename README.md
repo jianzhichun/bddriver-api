@@ -5,10 +5,10 @@
 ## ✨ 功能特性
 
 - 🔐 零额外配置：内置必要配置，直接使用
-- 📱 微信通知：通过 WxPusher 发送授权请求链接
-
+- 📱 多通道通知：支持WxPusher、钉钉、企业微信、邮件等多种推送渠道
 - 🧪 覆盖测试：提供示例与测试，便于集成验证
 - 🚀 设备码授权：支持无需回调链接的设备码模式授权
+- 🔌 可扩展架构：基于抽象接口，轻松添加新的消息推送渠道
 
 ## 📦 安装
 
@@ -154,10 +154,43 @@ bddriver --version
 - `client_id`：OAuth客户端ID
 - `client_secret`：OAuth客户端密钥
 
-### WxPusher配置
-确保在配置中设置了：
-- `app_token`：WxPusher应用令牌
-- `base_url`：WxPusher API基础URL
+### 消息推送配置
+
+#### WxPusher配置（默认）
+```python
+# 在配置中设置
+wxpusher_config = {
+    "app_token": "AT_xxxxxxxxxxxxx",
+    "base_url": "https://wxpusher.zjiecode.com"
+}
+```
+
+#### 钉钉机器人配置（可选）
+```python
+dingtalk_config = {
+    "webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=xxxxxxxx",
+    "secret": "SEC000000000000000000000"  # 可选
+}
+```
+
+#### 企业微信配置（可选）
+```python
+wechat_work_config = {
+    "corp_id": "wwxxxxxxxxxxxxxxxxxx",
+    "agent_id": "1000001",
+    "secret": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+}
+```
+
+#### 邮件配置（可选）
+```python
+email_config = {
+    "smtp_host": "smtp.gmail.com",
+    "smtp_port": 587,
+    "username": "your-email@gmail.com",
+    "password": "your-app-password"
+}
+```
 
 ### 目标用户准备
 目标用户需要：
@@ -233,13 +266,50 @@ export BDDRIVER_LOG_FORMAT=console
 bddriver info
 ```
 
+## 🔌 消息推送架构
+
+### 抽象接口设计
+项目采用抽象接口设计，支持多种消息推送渠道：
+
+```python
+from bddriver.messaging import MessageProvider, MessageProviderRegistry
+
+# 创建消息提供者注册表
+registry = MessageProviderRegistry()
+
+# 注册不同的消息提供者
+registry.register_provider("wxpusher", WxPusherProvider(wxpusher_config))
+registry.register_provider("dingtalk", DingTalkProvider(dingtalk_config))
+registry.register_provider("email", EmailProvider(email_config))
+
+# 自动检测用户ID格式并选择合适的提供者
+provider = registry.detect_provider_by_user_id("UID_xxxxx")  # WxPusher
+provider = registry.detect_provider_by_user_id("13800138000")  # 钉钉
+provider = registry.detect_provider_by_user_id("user@example.com")  # 邮件
+```
+
+### 支持的消息渠道
+- **WxPusher**：微信推送（默认）
+- **钉钉机器人**：钉钉群组通知
+- **企业微信**：企业内部通知
+- **邮件**：SMTP邮件推送
+- **可扩展**：基于抽象接口轻松添加新渠道
+
+### 用户ID格式自动识别
+- `UID_xxxxx` → WxPusher
+- `13800138000` → 钉钉（手机号）
+- `ding_xxxxx` → 钉钉（用户ID）
+- `user@example.com` → 邮件
+- `wwxxxxx` → 企业微信
+
 ## 📚 参考与示例
 
 - 代码结构与入口：`bddriver/client.py`、`bddriver/cli.py`
 - 授权与服务器：`bddriver/auth/*`
 - 文件操作：`bddriver/fileops/*`
-- WxPusher：`bddriver/wxpusher/*`
+- 消息推送：`bddriver/messaging/*`
 - 示例：`examples/`
+- 多提供者演示：`examples/multi_provider_demo.py`
 
 ## 👨‍💻 作者
 
@@ -306,6 +376,13 @@ bddriver-api/
 ```
 
 ## 📝 更新日志
+
+### v1.1.0 (2025-08-28)
+- 🔌 新增消息推送抽象架构，支持多种推送渠道
+- 📱 支持钉钉、企业微信、邮件等新推送方式
+- 🔄 重构WxPusher客户端，使用新的抽象接口
+- 🧹 清理旧的模板系统，保持向后兼容性
+- 📚 更新文档，说明新的消息架构
 
 ### v1.0.0 (2025-08-28)
 - ✨ 移除 ngrok 和临时服务器依赖

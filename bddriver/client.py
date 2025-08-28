@@ -25,7 +25,7 @@ class BaiduDriver:
     """BaiduDriver 主客户端
 
     零配置开箱即用的百度网盘授权 SDK
-    让用户 A 能够安全地访问用户 xxx 的百度网盘文件
+    让用户 A 能够安全地访问用户 B 的百度网盘文件
 
     Usage:
         from bddriver import BaiduDriver
@@ -34,7 +34,7 @@ class BaiduDriver:
         driver = BaiduDriver()
 
         # 发起授权请求
-        result = driver.request_access("xxx_user_id", "/files")
+        result = driver.request_device_access("user_b_uid", "/files")
 
         # 使用文件
         files = driver.list_files(result['access_token'])
@@ -71,7 +71,7 @@ class BaiduDriver:
 
         Example:
             >>> driver = BaiduDriver()
-            >>> result = driver.request_device_access("xxx_uid")
+            >>> result = driver.request_device_access("user_b_uid")
             >>> print(f"授权成功: {result['access_token']}")
 
         Note:

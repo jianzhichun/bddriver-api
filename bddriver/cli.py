@@ -1,6 +1,7 @@
 """
 Command Line Interface for BaiduDriver SDK
 Provides convenient CLI commands for file operations
+🚀 开发模式：实时生效，无需重新安装！
 """
 
 import argparse

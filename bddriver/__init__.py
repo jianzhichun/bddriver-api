@@ -2,7 +2,7 @@
 BaiduDriver - 零配置百度网盘授权驱动
 
 零配置开箱即用的百度网盘授权 SDK，通过 WxPusher 实现授权流程。
-让用户 A 能够安全地访问用户 xxx 的百度网盘文件。
+让用户 A 能够安全地访问用户 B 的百度网盘文件。
 
 Usage:
     from bddriver import BaiduDriver
@@ -11,7 +11,7 @@ Usage:
     driver = BaiduDriver()
 
     # 发起授权请求
-    auth_result = driver.request_access("xxx_user_id", "/files")
+    auth_result = driver.request_device_access("user_b_uid", "/files")
 
     # 使用文件
     files = driver.list_files(auth_result['access_token'])

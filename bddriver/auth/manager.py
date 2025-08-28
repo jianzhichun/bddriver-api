@@ -15,7 +15,7 @@ from ..utils.logger import (
     log_operation_start,
 )
 from ..wxpusher.client import WxPusherClient
-from ..wxpusher.templates import MessageTemplates
+
 from .oauth import OAuthManager
 
 
@@ -80,7 +80,7 @@ class AuthManager:
             print(f"💡 授权完成后，我将自动获取访问权限")
             print(f"{'='*60}\n")
 
-            # 3. 推送设备码信息给用户xxx
+            # 3. 推送设备码信息给目标用户
             self._send_device_auth_notification(
                 target_user_id, user_code, verification_url, expires_in
             )
@@ -132,24 +132,17 @@ class AuthManager:
     ) -> None:
         """发送设备码授权通知"""
         try:
-            # 使用设备码授权消息模板
-            message_data = MessageTemplates.device_auth_template(
+            result = self.wxpusher_client.send_device_auth_notification(
+                user_id=target_user_id,
                 user_code=user_code,
                 verification_url=verification_url,
                 expires_in=expires_in,
-                file_path="/",  # 默认根路径
-                description="需要访问你的百度网盘文件",
             )
 
-            result = self.wxpusher_client.send_message(
-                user_id=target_user_id,
-                content=message_data["content"],
-                summary=message_data["summary"],
-                content_type=message_data["content_type"],
-                url=message_data.get("url"),
-            )
-
-            self.logger.info(f"设备码授权通知发送成功: {target_user_id}")
+            if result.get("success"):
+                self.logger.info(f"设备码授权通知发送成功: {target_user_id}")
+            else:
+                self.logger.warning(f"设备码授权通知发送失败: {result.get('msg', '未知错误')}")
 
         except Exception as e:
             self.logger.error(f"发送设备码授权通知失败: {e}")
@@ -160,20 +153,14 @@ class AuthManager:
     ) -> None:
         """发送授权成功通知"""
         try:
-            message_data = MessageTemplates.auth_success_template(
-                user_id=target_user_id,
-                file_path=file_path or "/",
-                expires_at=int(time.time() + 3600),  # 1小时后过期
+            result = self.wxpusher_client.send_success_notification(
+                user_id=target_user_id
             )
 
-            self.wxpusher_client.send_message(
-                user_id=target_user_id,
-                content=message_data["content"],
-                summary=message_data["summary"],
-                content_type=message_data["content_type"],
-            )
-
-            self.logger.info(f"授权成功通知发送成功: {target_user_id}")
+            if result.get("success"):
+                self.logger.info(f"授权成功通知发送成功: {target_user_id}")
+            else:
+                self.logger.warning(f"授权成功通知发送失败: {result.get('msg', '未知错误')}")
 
         except Exception as e:
             self.logger.warning(f"发送授权成功通知失败: {e}")
