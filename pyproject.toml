@@ -7,7 +7,7 @@ name = "bddriver"
 version = "1.0.0"
 description = "零配置百度网盘授权驱动 - 开箱即用的百度网盘 SDK"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "AGPL-3.0-only"}
 authors = [
     {name = "Zhang Zao", email = "zzchun12826@gmail.com"}
 ]
@@ -15,7 +15,7 @@ keywords = ["baidu", "netdisk", "sdk", "oauth", "wxpusher", "authorization", "fi
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.7",

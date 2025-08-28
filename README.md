@@ -459,4 +459,10 @@ black bddriver/ tests/
 
 ##  许可证
 
-MIT License
+本项目采用 **GNU Affero General Public License v3.0 (AGPL-3.0)** 许可协议发布。
+
+简述：
+- 若你修改并部署为对外提供网络服务的程序，需要开源你的修改版本的源代码（符合 AGPL 第13条）。
+- 你可以自由使用、复制、分发和修改，但必须在分发时保留相同的许可证。
+
+完整协议请参见仓库根目录的 `LICENSE` 文件。
