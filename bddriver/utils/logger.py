@@ -115,9 +115,9 @@ class BaiduDriverLogger:
         if self.logger.handlers:
             return  # 避免重复配置
 
-        # 设置日志级别
-        log_level = os.getenv("BDDRIVER_LOG_LEVEL", "INFO").upper()
-        self.logger.setLevel(getattr(logging, log_level, logging.INFO))
+        # 设置日志级别 - 默认只显示WARNING及以上，减少噪音
+        log_level = os.getenv("BDDRIVER_LOG_LEVEL", "WARNING").upper()
+        self.logger.setLevel(getattr(logging, log_level, logging.WARNING))
 
         # 控制台处理器
         console_handler = logging.StreamHandler(sys.stdout)

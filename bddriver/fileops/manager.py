@@ -109,7 +109,7 @@ class FileOperationsManager:
             FileOperationError: 操作失败
         """
         operation_name = f"列出文件 {path}"
-        log_operation_start(self.logger, operation_name, path=path, limit=limit)
+        self.logger.debug(f"开始执行: {operation_name}")
 
         try:
             with openapi_client.ApiClient() as api_client:
@@ -131,16 +131,7 @@ class FileOperationsManager:
 
                 duration = time.time() - start_time
 
-                log_api_call(
-                    self.logger,
-                    "BaiduDrive",
-                    "GET",
-                    "xpanfilelist",
-                    200,
-                    duration,
-                    path=path,
-                    count=len(response.list) if hasattr(response, "list") else 0,
-                )
+                self.logger.debug(f"BaiduDrive API调用: xpanfilelist (耗时: {duration:.3f}s)")
 
                 # 简单的调试信息
                 self.logger.debug(f"API响应类型: {type(response)}")
@@ -153,7 +144,7 @@ class FileOperationsManager:
                     file_list = response["list"]
                     # 调试：打印前几个文件的详细信息
                     if file_list and len(file_list) > 0:
-                        self.logger.info(f"第一个文件的原始数据: {file_list[0]}")
+                        self.logger.debug(f"第一个文件的原始数据: {file_list[0]}")
 
                     for item in file_list:
                         if isinstance(item, dict):
@@ -171,13 +162,7 @@ class FileOperationsManager:
                             file_info = self._convert_file_info(item)
                             files.append(file_info)
 
-                log_operation_end(
-                    self.logger,
-                    operation_name,
-                    success=True,
-                    duration=duration,
-                    file_count=len(files),
-                )
+                self.logger.debug(f"操作完成: {operation_name} (文件数: {len(files)})")
 
                 return files
 
