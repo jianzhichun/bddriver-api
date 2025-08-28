@@ -4,8 +4,7 @@
 展示如何配置和使用不同的推送渠道
 """
 
-from bddriver.messaging import WxPusherClient
-from bddriver.messaging.providers import DingTalkProvider, WeChatWorkProvider, EmailProvider
+from bddriver.messaging import WxPusherProvider, DingTalkProvider, WeChatWorkProvider, EmailProvider
 from bddriver.auth import AuthManager
 
 
@@ -14,8 +13,8 @@ def setup_message_providers():
     providers = {}
     
     # 1. WxPusher提供者（默认）
-    wxpusher_client = WxPusherClient()
-    providers["wxpusher"] = wxpusher_client
+    wxpusher_provider = WxPusherProvider()
+    providers["wxpusher"] = wxpusher_provider
     
     # 2. 钉钉提供者（未来扩展）
     dingtalk_config = {
@@ -92,7 +91,7 @@ def test_message_sending():
     print("📱 测试WxPusher消息发送...")
     
     # 这里只是演示，实际使用时需要有效的配置
-    print("ℹ️  WxPusher客户端已初始化")
+    print("ℹ️  WxPusher提供者已初始化")
     print("ℹ️  需要有效配置才能发送实际消息")
     
     print("=" * 50)

@@ -1,26 +1,33 @@
 """
-WxPusher client for BaiduDriver SDK
+WxPusher 消息提供者
 
 直接实现WxPusher消息发送，保持向后兼容性
 """
 
 import requests
 from typing import Any, Dict, Optional
-from ...config import config
+from ..config import config
 
 
-class WxPusherClient:
-    """WxPusher 微信推送客户端
+class WxPusherProvider:
+    """WxPusher 微信推送提供者
     
     直接实现WxPusher消息发送，保持向后兼容性
     """
     
     def __init__(self):
-        """初始化WxPusher客户端"""
+        """初始化WxPusher提供者"""
         wxpusher_config = config.get_wxpusher_config()
         self.app_token = wxpusher_config.app_token
         self.base_url = wxpusher_config.base_url
         self.api_url = f"{self.base_url}/api/send/message"
+    
+    def validate_user_id(self, user_id: str) -> bool:
+        """验证WxPusher用户ID格式
+        
+        WxPusher用户ID通常是UID_开头的字符串
+        """
+        return user_id.startswith("UID_") and len(user_id) > 4
     
     def send_message(
         self,
@@ -154,3 +161,7 @@ class WxPusherClient:
             summary="百度网盘授权成功",
             content_type=2
         )
+
+
+# 为了向后兼容，保留WxPusherClient别名
+WxPusherClient = WxPusherProvider

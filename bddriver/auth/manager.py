@@ -1,20 +1,20 @@
 """
-Authorization Manager for BaiduDriver SDK
-Handles device code authorization flow with WxPusher integration
+百度网盘授权管理器
+
+管理设备码授权流程，包括：
+1. 发起授权请求
+2. 轮询等待授权完成
+3. 发送通知消息
+4. 管理授权状态
 """
 
 import time
-from typing import Any, Dict, Optional
+import uuid
+from typing import Dict, Any, Optional
 
-from ..config import config
 from ..utils.errors import AuthTimeoutError, BaiduDriveError, WxPusherError
-from ..utils.logger import (
-    get_auth_logger,
-    log_error,
-    log_operation_end,
-    log_operation_start,
-)
-from ..messaging.wxpusher.client import WxPusherClient
+from ..utils.logger import get_auth_logger
+from ..messaging.wxpusher_provider import WxPusherProvider
 
 from .oauth import OAuthManager
 
@@ -29,7 +29,7 @@ class AuthManager:
 
         # 初始化组件
         self.oauth_manager = OAuthManager()
-        self.wxpusher_client = WxPusherClient()
+        self.wxpusher_client = WxPusherProvider()
 
         self.logger.info("授权管理器初始化完成")
 
