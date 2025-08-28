@@ -5,6 +5,7 @@ Zero-configuration Baidu NetDisk authorization SDK
 """
 
 import time
+import asyncio
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -102,6 +103,21 @@ class BaiduDriver:
             raise BaiduDriverError(f"授权前钩子执行失败: {hook_result.error}")
         if not hook_result.should_continue:
             raise BaiduDriverError(f"授权被钩子阻止: {hook_result.error}")
+        
+        # 执行异步授权前钩子（阻塞等待完成）
+        try:
+            async_result = asyncio.run(
+                execute_async_hooks(HookEvent.BEFORE_AUTH_REQUEST, hook_context)
+            )
+        except RuntimeError:
+            # 已有事件循环（例如在异步环境中被调用）
+            async_result = asyncio.get_event_loop().run_until_complete(
+                execute_async_hooks(HookEvent.BEFORE_AUTH_REQUEST, hook_context)
+            )
+        if not async_result.success:
+            raise BaiduDriverError(f"授权前异步钩子执行失败: {async_result.error}")
+        if not async_result.should_continue:
+            raise BaiduDriverError(f"授权被异步钩子阻止: {async_result.error}")
         
         try:
             # 执行授权
@@ -215,6 +231,20 @@ class BaiduDriver:
             raise BaiduDriverError(f"文件操作前钩子执行失败: {hook_result.error}")
         if not hook_result.should_continue:
             raise BaiduDriverError(f"文件操作被钩子阻止: {hook_result.error}")
+        
+        # 执行异步文件操作前钩子（阻塞等待完成）
+        try:
+            async_result = asyncio.run(
+                execute_async_hooks(HookEvent.BEFORE_FILE_OPERATION, hook_context)
+            )
+        except RuntimeError:
+            async_result = asyncio.get_event_loop().run_until_complete(
+                execute_async_hooks(HookEvent.BEFORE_FILE_OPERATION, hook_context)
+            )
+        if not async_result.success:
+            raise BaiduDriverError(f"文件操作前异步钩子执行失败: {async_result.error}")
+        if not async_result.should_continue:
+            raise BaiduDriverError(f"文件操作被异步钩子阻止: {async_result.error}")
 
         try:
             # 执行文件操作
