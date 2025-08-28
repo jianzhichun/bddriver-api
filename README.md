@@ -74,28 +74,11 @@ except WxPusherError as e:
 
 - `examples/basic_usage.py`
 - `examples/file_operations.py`
-- `examples/auth.py`
 - `examples/device_auth.py`
 
 ## 🖥️ 命令行 CLI
 
-安装后提供 `bddriver` 命令，支持两种授权模式：
-
-### 传统授权模式
-
-```bash
-# 发起授权并展示脱敏后的 token 与过期时间
-bddriver auth <WxPusher_UID> --path /some/dir --description "说明" --timeout 300
-
-# 列出文件（使用 --token 或 --token-file）
-bddriver ls / --token <ACCESS_TOKEN>
-
-# 下载/上传
-bddriver download <remote_path> <local_path> --token <ACCESS_TOKEN> --progress
-bddriver upload <local_path> <remote_path> --token <ACCESS_TOKEN> --progress
-```
-
-### 设备码授权模式（推荐）
+安装后提供 `bddriver` 命令，支持设备码授权模式：
 
 ```bash
 # 基础设备码授权（自动保存到 bddriver_token.json）
@@ -152,15 +135,15 @@ bddriver info
 bddriver --version
 ```
 
-## 🔐 授权方式对比
+## 🔐 设备码授权优势
 
-| 特性 | 传统授权 | 设备码授权 |
-|------|----------|------------|
-| 回调链接 | 需要公网IP | 无需公网IP |
-| 适用环境 | 有公网访问 | 内网/服务器 |
-| 用户体验 | 点击链接授权 | 输入用户码授权 |
-| 自动化程度 | 中等 | 高 |
-| 推荐场景 | 开发测试 | 生产环境 |
+| 特性 | 设备码授权 |
+|------|------------|
+| 回调链接 | 无需公网IP |
+| 适用环境 | 内网/服务器/任何环境 |
+| 用户体验 | 输入用户码授权，简单快捷 |
+| 自动化程度 | 高，支持脚本化 |
+| 推荐场景 | 生产环境、自动化部署 |
 
 ## ⚙️ 配置要求
 
