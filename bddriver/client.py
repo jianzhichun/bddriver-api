@@ -6,6 +6,7 @@ Zero-configuration Baidu NetDisk authorization SDK
 
 import time
 import asyncio
+from threading import Thread
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -24,6 +25,45 @@ from .utils.errors import (
     WxPusherError,
 )
 from .utils.logger import get_logger, log_error, log_operation_end, log_operation_start
+
+
+def _run_async_blocking(coro):
+    """Run an async coroutine to completion from a sync context safely.
+
+    - Uses asyncio.run when no loop is running.
+    - When already inside a running loop (e.g., Jupyter/async app), runs the
+      coroutine in a dedicated event loop on a background thread and blocks
+      until it finishes.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop in this thread
+        return asyncio.run(coro)
+
+    result_holder = {"result": None, "error": None}
+
+    def _thread_runner():
+        new_loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(new_loop)
+            result = new_loop.run_until_complete(coro)
+            result_holder["result"] = result
+        except Exception as exc:  # noqa: BLE001
+            result_holder["error"] = exc
+        finally:
+            try:
+                new_loop.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+    t = Thread(target=_thread_runner, daemon=True)
+    t.start()
+    t.join()
+
+    if result_holder["error"] is not None:
+        raise result_holder["error"]
+    return result_holder["result"]
 
 
 class BaiduDriver:
@@ -104,16 +144,10 @@ class BaiduDriver:
         if not hook_result.should_continue:
             raise BaiduDriverError(f"授权被钩子阻止: {hook_result.error}")
         
-        # 执行异步授权前钩子（阻塞等待完成）
-        try:
-            async_result = asyncio.run(
-                execute_async_hooks(HookEvent.BEFORE_AUTH_REQUEST, hook_context)
-            )
-        except RuntimeError:
-            # 已有事件循环（例如在异步环境中被调用）
-            async_result = asyncio.get_event_loop().run_until_complete(
-                execute_async_hooks(HookEvent.BEFORE_AUTH_REQUEST, hook_context)
-            )
+        # 执行异步授权前钩子（阻塞等待完成，兼容已有事件循环）
+        async_result = _run_async_blocking(
+            execute_async_hooks(HookEvent.BEFORE_AUTH_REQUEST, hook_context)
+        )
         if not async_result.success:
             raise BaiduDriverError(f"授权前异步钩子执行失败: {async_result.error}")
         if not async_result.should_continue:
@@ -232,15 +266,10 @@ class BaiduDriver:
         if not hook_result.should_continue:
             raise BaiduDriverError(f"文件操作被钩子阻止: {hook_result.error}")
         
-        # 执行异步文件操作前钩子（阻塞等待完成）
-        try:
-            async_result = asyncio.run(
-                execute_async_hooks(HookEvent.BEFORE_FILE_OPERATION, hook_context)
-            )
-        except RuntimeError:
-            async_result = asyncio.get_event_loop().run_until_complete(
-                execute_async_hooks(HookEvent.BEFORE_FILE_OPERATION, hook_context)
-            )
+        # 执行异步文件操作前钩子（阻塞等待完成，兼容已有事件循环）
+        async_result = _run_async_blocking(
+            execute_async_hooks(HookEvent.BEFORE_FILE_OPERATION, hook_context)
+        )
         if not async_result.success:
             raise BaiduDriverError(f"文件操作前异步钩子执行失败: {async_result.error}")
         if not async_result.should_continue:
